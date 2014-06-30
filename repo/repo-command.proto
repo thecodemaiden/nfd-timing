@@ -1,0 +1,33 @@
+message RepoCommandParameterMessage {
+  message Name {
+    repeated bytes component = 8;
+  }
+
+  message KeyLocator {
+    optional Name name = 7;
+    optional bytes key_locator_digest = 29;
+  }
+
+  // This definition of Exclude does not represent ANY.
+  message Exclude {
+    repeated bytes component = 8;
+  }
+
+  message Selectors {
+    optional uint32 min_suffix_components = 13;
+    optional uint32 max_suffix_components = 14;
+    optional KeyLocator publisher_public_key_locator = 15;
+    optional Exclude exclude = 16;
+    optional uint32 child_selector = 17;
+  }
+
+  message RepoCommandParameter {
+    optional Name name = 7;
+    optional Selectors selectors = 9;
+    optional uint32 start_block_id = 204;
+    optional uint32 end_block_id = 205;
+    optional uint64 process_id = 206;
+  }
+
+  required RepoCommandParameter repo_command_parameter = 201;
+}

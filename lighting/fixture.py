@@ -34,13 +34,11 @@ class LightController():
         self.registerFailed = False
         self.done = False
         self.prefix = Name(prefix)
-        self.address = externalIP
         self.keychain = KeyChain()
         self.certificateName = self.keychain.getDefaultCertificateName()
 
     # XXX: we should get a thread for this or something!
     def start(self):
-        #self.face = Face(self.address)
         self.face = Face()
         self.face.setCommandSigningInfo(self.keychain, self.certificateName)
         self.face.registerPrefix(self.prefix, self.onLightingCommand, self.onRegisterFailed)
@@ -105,7 +103,7 @@ done = False
 if __name__ == '__main__':
     N=0 
 
-    l = LightController(SRC_IP, LIGHT_IP, LISTEN_PREFIX)
+    l = LightController(MY_IP, LIGHT_IP, LISTEN_PREFIX)
     # set up a face to listen for lighting commands
     try:
         l.start()
