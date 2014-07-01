@@ -59,13 +59,9 @@ if __name__ == '__main__':
         face.setCommandSigningInfo(keychain, certName)
     input = None
     N = 0
-    toggle = False
     try:
         while True:
             byteVal = (N)&0xff
-            if toggle:
-                byteVal = 255 - byteVal
-            toggle = not toggle
             color = (0,0,0)
             selector = (N/256)%0x3
             if selector == 1:
@@ -77,7 +73,7 @@ if __name__ == '__main__':
 
             interest = createCommandInterest(color=color)
             waitForResponse(face, interest, None)
-            N += 5
+            N += 10
     except KeyboardInterrupt:
         pass
     face.shutdown()

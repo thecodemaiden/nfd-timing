@@ -9,7 +9,7 @@ from numpy import mean
 import logging
 
 class RepoConsumer:
-    TIMEOUT = 0xFFFF
+    TIMEOUT = 50
     def __init__(self, dataPrefix, lastVersion=None, start=True):
         self.prefix = Name(dataPrefix)
         
@@ -18,13 +18,16 @@ class RepoConsumer:
 
         self.face = Face()
         self.dataFormat = re.compile("\((\d+\.?\d*)\)") # data should start with a timestamp in 
+        logFormat = '%(asctime)-10s %(message)s'
         self.logger = logging.getLogger('RepoConsumer')
-        self.logger.setLevel(logging.WARNING)
-        self.logger.addHandler(logging.StreamHandler())
+        self.logger.setLevel(logging.DEBUG)
+        #self.logger.addHandler(logging.StreamHandler())
         fh = logging.FileHandler('repo_consumer.log', mode='w')
-        fh.setLevel(logging.INFO)
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter(logFormat))
         self.logger.addHandler(fh)
         self.timing = []
+
     def onData(self, interest, data):
         now = time.time()
         # for now, assume there is a version appended to the interest
@@ -51,7 +54,8 @@ class RepoConsumer:
 
     def reissueInterest(self):
         interest = Interest(Name(self.prefix))
-        interest.setInterestLifetimeMilliseconds(RepoConsumer.TIMEOUT) # 10s seems good
+        interest.setInterestLifetimeMilliseconds(RepoConsumer.TIMEOUT) 
+        interest.setMustBeFresh(False)
         if self.lastVersion is not None:
             e = Exclude()
             e.appendAny()
