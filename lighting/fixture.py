@@ -11,15 +11,9 @@ from pyndn.security import KeyChain
 from pyndn.encoding import ProtobufTlv
 from light_command_pb2 import LightCommandMessage
 
-import logging
-
-MY_IP="192.168.1.1"
-LIGHT_IP="192.168.1.50"
-LISTEN_PREFIX="/testlight"
-
 class LightController():
     shouldSign = False
-    def __init__(self,myIP, lightIP, prefix, nStrands=1):
+    def __init__(self, nStrands=1, myIP="192.168.1.1", lightIP="192.168.1.50", prefix="/testlight"):
         self.log = logging.getLogger("LightController")
         self.log.setLevel(logging.DEBUG)
         sh = logging.StreamHandler()
@@ -28,6 +22,8 @@ class LightController():
         fh = logging.FileHandler("LightController.log")
         fh.setLevel(logging.INFO)
         self.log.addHandler(fh)
+
+
 
         self.lightModel = IColorFlex(ports=nStrands)
         self.kinetsender = KinetSender(myIP, lightIP, nStrands, 150)
@@ -47,7 +43,7 @@ class LightController():
             if self.registerFailed:
                 self.stop()
                 break
-            time.sleep(0.01)
+            time.sleep(0.001)
 
 
     def stop(self):
@@ -97,13 +93,12 @@ class LightController():
 
     def sendLightPayload(self, port):
         self.kinetsender.setPayload(port, self.lightModel.payload[port-1])
-        time.sleep(0.50)
 
 done = False
 if __name__ == '__main__':
     N=0 
 
-    l = LightController(MY_IP, LIGHT_IP, LISTEN_PREFIX)
+    l = LightController()
     # set up a face to listen for lighting commands
     try:
         l.start()

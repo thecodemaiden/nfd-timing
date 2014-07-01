@@ -30,7 +30,7 @@ timeouts = 0
 shouldSign = False
 keychain = KeyChain()
 certName = keychain.getDefaultCertificateName()
-def waitForResponse(face, interest):
+def waitForResponse(face, interest, timeout=None):
     global timeouts
     onData = Mock()
     onTimeout = Mock()
@@ -41,14 +41,16 @@ def waitForResponse(face, interest):
     start = time.time()
     while (onData.call_count == 0 and onTimeout.call_count == 0):
         face.processEvents()
-        time.sleep(0.01)
+        time.sleep(0.001)
+        if timeout is not None and time.time() >= start+timeout:
+            break
 
     done = time.time()
     
-    if onData.call_count > 0:
-        timing.append(done-start)
     if onTimeout.call_count > 0:
         timeouts +=1
+    else:
+        timing.append(done-start)
 
 
 if __name__ == '__main__':
@@ -56,13 +58,22 @@ if __name__ == '__main__':
     if shouldSign:
         face.setCommandSigningInfo(keychain, certName)
     input = None
+    N = 0
     try:
         while True:
-            r = randrange(256)
-            g = randrange(256)
-            b = randrange(256)
-            interest = createCommandInterest(color=(r,g,b))
-            waitForResponse(face, interest)
+            byteVal = (N)&0xff
+            color = (0,0,0)
+            selector = (N/256)%0x3
+            if selector == 1:
+                color = (byteVal, 0, 0)
+            elif selector == 2:
+                color = (0, byteVal, 0)
+            elif selector == 0:
+                color = (0, 0, byteVal)
+
+            interest = createCommandInterest(color=color)
+            waitForResponse(face, interest, None)
+            N += 50
     except KeyboardInterrupt:
         pass
     face.shutdown()

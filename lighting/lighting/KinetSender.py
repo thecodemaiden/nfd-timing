@@ -20,7 +20,7 @@ from BeaconLogging import BeaconLogging
 #
 class KinetSender(Thread):
 
-    PACKET_INTERVAL_SECONDS = 0.025
+    PACKET_INTERVAL_SECONDS = 0.008
     srcIP = ""
     srcPort = 0  # any available
     destIP = "" 
