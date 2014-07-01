@@ -41,7 +41,7 @@ def waitForResponse(face, interest, timeout=None):
     start = time.time()
     while (onData.call_count == 0 and onTimeout.call_count == 0):
         face.processEvents()
-        time.sleep(0.001)
+        #time.sleep(0.001)
         if timeout is not None and time.time() >= start+timeout:
             break
 
@@ -59,9 +59,13 @@ if __name__ == '__main__':
         face.setCommandSigningInfo(keychain, certName)
     input = None
     N = 0
+    toggle = False
     try:
         while True:
             byteVal = (N)&0xff
+            if toggle:
+                byteVal = 255 - byteVal
+            toggle = not toggle
             color = (0,0,0)
             selector = (N/256)%0x3
             if selector == 1:
@@ -73,7 +77,7 @@ if __name__ == '__main__':
 
             interest = createCommandInterest(color=color)
             waitForResponse(face, interest, None)
-            N += 50
+            N += 5
     except KeyboardInterrupt:
         pass
     face.shutdown()
