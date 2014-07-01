@@ -18,9 +18,9 @@ from BeaconLogging import BeaconLogging
 
 # Sends to one IP
 #
-class KinetSender(Thread):
+class KinetSender(object):
 
-    PACKET_INTERVAL_SECONDS = 0.008
+    PACKET_INTERVAL_SECONDS = 0.007
     srcIP = ""
     srcPort = 0  # any available
     destIP = "" 
@@ -39,7 +39,6 @@ class KinetSender(Thread):
     # set srcip="" for all available interfaces
     # pass array as fixtureLength for varying lengths, integer if all the same
     def __init__(self, srcip, destip, fixtureports, fixtureLength, log=None, start=True):
-        Thread.__init__(self)
         if log:
             self.log = log
         else:
@@ -57,13 +56,14 @@ class KinetSender(Thread):
         for k in range(1, self.fixturePorts+1):
             self.dataPackets.append(KinetPktPortOut(k, self.fixtureLength[k-1]))
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.runThread = Thread(target=self.run, name='Payload transmit thread')
         try:
             self.sock.bind((self.srcIP, self.srcPort))
         except Exception, e:
             self.log.log(logging.ERROR, "KinetSender.__init__()", "Exception binding socket", exception=e)
         else:     
             if start:
-                self.start()
+                self.runThread.start()
     
     def addPayloadObject(self, obj):
         #TODO Check object has payload attribute
@@ -81,14 +81,14 @@ class KinetSender(Thread):
     def setPayload(self, port, payload):
         if port<1 or port>self.fixturePorts:
             return None
-        for k in range(0, self.dataPackets[port-1].length):
-            try:
-                self.dataPackets[port-1].payloadLock.acquire()
+        try:
+            self.dataPackets[port-1].payloadLock.acquire()
+            for k in range(0, self.dataPackets[port-1].length):
                 self.dataPackets[port-1].payload[k] = payload[k]
-            except Exception, e:
-                self.log.log(logging.ERROR, "KinetSender.setPayload()", "Exception", exception=e)
-            finally:
-                self.dataPackets[port-1].payloadLock.release()
+        except Exception, e:
+            self.log.log(logging.ERROR, "KinetSender.setPayload()", "Exception", exception=e)
+        finally:
+            self.dataPackets[port-1].payloadLock.release()
         
     def run(self):
         # Print out what we're doing
@@ -196,10 +196,8 @@ if __name__ == '__main__':
             for i in range(0,50):
                 bob[i*3:i*3+3]=(N*x for x in p)     
             kinetsender.setPayload(1,bob)    
-            time.sleep(0.050)  # half of packet interval
         except KeyboardInterrupt, k:
             kinetsender.setPayload(1, [0 for i in range(150)])
-            time.sleep(0.050)
             kinetsender.stop = True
             kinetsender.complete.wait()         
             sys.exit(1)

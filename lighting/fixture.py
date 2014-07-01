@@ -1,5 +1,4 @@
 from lighting.KinetSender import KinetSender
-from lighting.iColorFlex import IColorFlex
 import logging
 import time
 import sys
@@ -13,6 +12,8 @@ from light_command_pb2 import LightCommandMessage
 
 class LightController():
     shouldSign = False
+    COLORS_PER_LIGHT = 3
+    STRAND_SIZE = 50
     def __init__(self, nStrands=1, myIP="192.168.1.1", lightIP="192.168.1.50", prefix="/testlight"):
         self.log = logging.getLogger("LightController")
         self.log.setLevel(logging.DEBUG)
@@ -23,10 +24,9 @@ class LightController():
         fh.setLevel(logging.INFO)
         self.log.addHandler(fh)
 
+        self.payloadBuffer = [[0]*self.STRAND_SIZE*self.COLORS_PER_LIGHT for n in range(nStrands)]
 
-
-        self.lightModel = IColorFlex(ports=nStrands)
-        self.kinetsender = KinetSender(myIP, lightIP, nStrands, 150)
+        self.kinetsender = KinetSender(myIP, lightIP, nStrands, self.STRAND_SIZE*self.COLORS_PER_LIGHT)
         self.registerFailed = False
         self.done = False
         self.prefix = Name(prefix)
@@ -43,7 +43,7 @@ class LightController():
             if self.registerFailed:
                 self.stop()
                 break
-            time.sleep(0.001)
+            #time.sleep(0.001)
 
 
     def stop(self):
@@ -57,6 +57,10 @@ class LightController():
             self.keychain.sign(data, self.certificateName)
         else:
             data.setSignature(Sha256WithRsaSignature())
+
+    def setPayloadColor(self, strand, color):
+        # will expand this to allow the repeats, etc
+        self.payloadBuffer[strand] = [int(color.r)&0xff, int(color.g)&0xff, int(color.b)&0xff]*self.STRAND_SIZE
 
     def onLightingCommand(self, prefix, interest, transport, prefixId):
         interestName = Name(interest.getName())
@@ -73,7 +77,7 @@ class LightController():
             requestedColor = lightingCommand.command.pattern.colors[0] 
             colorStr = str((requestedColor.r, requestedColor.g, requestedColor.b))
             self.log.info("Requested color: " + colorStr)
-            self.lightModel.setRGB(requestedColor.r, requestedColor.g, requestedColor.b)
+            self.setPayloadColor(0, requestedColor)
             self.sendLightPayload(1)
             d.setContent("Gotcha: " + colorStr+ "\n")
         except Exception as e:
@@ -92,7 +96,7 @@ class LightController():
         self.registerFailed = True
 
     def sendLightPayload(self, port):
-        self.kinetsender.setPayload(port, self.lightModel.payload[port-1])
+        self.kinetsender.setPayload(port, self.payloadBuffer[port-1])
 
 done = False
 if __name__ == '__main__':
