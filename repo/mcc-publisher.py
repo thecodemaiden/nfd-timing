@@ -5,6 +5,7 @@
 #
 
 # TODO - put command prefix into variable/config
+#        return a '404' object when data is not ready
 
 from pyndn import Name, Face, Interest, Data
 from pyndn.security import KeyChain
@@ -12,6 +13,7 @@ from repo_command_pb2 import RepoCommandParameterMessage
 from repo_response_pb2 import RepoCommandResponseMessage
 from pyndn.encoding import ProtobufTlv
 from pyndn.util.memory_content_cache import MemoryContentCache
+from pyndn.security import Sha256WithRsaSignature
 
 from threading import Thread
 from random import randint, uniform
@@ -32,6 +34,7 @@ N = 4
 # version, insert request time, data publish time, insert begin time, insert finish time
 insertTable = []
 
+
 def getInfoForVersion(version):
     found = None
     matches = [x for x in insertTable if x['version'] == version]
@@ -41,18 +44,26 @@ def getInfoForVersion(version):
     return found
 
 
-logFormat = '%(asctime)-10s %(message)s'
-logging.basicConfig(format=logFormat)
+logFormat = '%(asctime)-10s %(levelname)-8s: %(message)s'
 
 logger = logging.getLogger('RepoPublisher')
 logger.setLevel(logging.DEBUG)
+
 sh = logging.StreamHandler()
 sh.setLevel(logging.INFO)
+logger.addHandler(sh)
+
 fh = logging.FileHandler('mcc_push.log')
-fh.setLevel(logging.DEBUG)
 fh.setFormatter(logging.Formatter(logFormat))
-#logger.addHandler(sh)
+fh.setLevel(logging.DEBUG)
 logger.addHandler(fh)
+
+shouldSign = False
+shouldCollectStats = True
+
+fakeSignature = Sha256WithRsaSignature()
+
+missedRequests = 0
 
 def generateData(baseName):
     '''
@@ -70,12 +81,16 @@ def generateData(baseName):
     content = "(" + str(ts) +  ") Data named " + dataName.toUri()
     d.setContent(content)
     d.getMetaInfo().setFinalBlockID(segmentId)
-    d.getMetaInfo().setFreshnessPeriod(1000)
-    keychain.sign(d, certName)
+    d.getMetaInfo().setFreshnessPeriod(60000)
+    if shouldSign:
+        keychain.sign(d, certName)
+    else:
+        d.setSignature(fakeSignature)
 
-    info = getInfoForVersion(versionComponent.toEscapedString())
-    if info is not None:
-        info['publish_time'] = ts
+    if shouldCollectStats:
+        info = getInfoForVersion(versionComponent.toEscapedString())
+        if info is not None:
+            info['publish_time'] = ts
 
     return d
 
@@ -111,11 +126,24 @@ def collectStats(data):
     except:
         pass
     logger.info('{} packets created. '.format(len(data)))
+    logger.info('{} requests unsatisfied. '.format(missedRequests))
     logger.info('*'*10)
 
 
 def onDataMissing(prefix, interest, transport):
-    logger.debug("Data missing for interest: " + interest.toUri())
+    global missedRequests
+    logger.info("Data missing for interest: " + interest.toUri())
+    missedRequests += 1
+    d = Data(Name.fromEscapedString('/repotest/data/3/%FF/MISSING'))
+    d.getMetaInfo().setFreshnessPeriod(500)
+    d.setContent("TRY AGAIN")
+    if shouldSign:
+        keychain.sign(d, certName)
+    else:
+        d.setSignature(fakeSignature)
+    print d.getName().toRawString()
+    encodedData = d.wireEncode()
+    transport.send(encodedData.buf())
 
 if __name__ == '__main__':
     tb = None
@@ -126,13 +154,15 @@ if __name__ == '__main__':
     registerFail = Mock()
     def publisher_loop(face):
        global done
-       while not done:   
-           face.processEvents()
-           if registerFail.call_count > 0:
-               logger.error("Registration failed!")
-               done = True
-           time.sleep(0.01)
-       face.shutdown()
+       try:
+           while not done:   
+               face.processEvents()
+               if registerFail.call_count > 0:
+                   logger.error("Registration failed!")
+                   done = True
+               time.sleep(0.01)
+       except:
+           face.shutdown()
 
     publisher_face = Face("localhost")
     publisher_face.setCommandSigningInfo(keychain, certName)
@@ -143,14 +173,12 @@ if __name__ == '__main__':
     publisher = Thread(target=publisher_loop, name="Data publisher", args=(publisher_face,))    
     publisher.start()
 
-
-    lastVersion = None
     try:
         # sleep a second, like the repo-ng test
         time.sleep(1)
         while not done:
             #pick a random data name
-            data_part = "2"# str(randint(0,N))
+            data_part = "3"# str(randint(0,N))
 
             fullName = Name(data_prefix).append(Name(data_part))
 
@@ -160,19 +188,18 @@ if __name__ == '__main__':
             fullName.appendVersion(int(ts))
             versionComponent = fullName.get(-1)
             versionStr = versionComponent.toEscapedString()
-            logger.info('inserting: ' + versionStr)
-            if lastVersion is not None:
-                comp = Name().append(versionComponent).compare(Name().append(lastVersion))
-                logger.debug("Version comparison (new.compare(old)) = " + str(comp))
+            logger.debug('inserting: ' + versionStr)
 
-            insertTable.append({'version':versionStr, 'insert_request':time.time()})
+            if shouldCollectStats:
+                insertTable.append({'version':versionStr, 'insert_request':time.time()})
             data = generateData(fullName)
             dataCache.add(data)
-            info = getInfoForVersion(versionStr)
-            if info is not None:
-                info['insert_complete'] = time.time()
-            #time.sleep(0.5)
-            lastVersion = versionComponent
+
+            if shouldCollectStats:
+                info = getInfoForVersion(versionStr)
+                if info is not None:
+                    info['insert_complete'] = time.time()
+            time.sleep(0.1)
     except Exception as e:
         print e
         tb = traceback.format_exc()
@@ -185,7 +212,7 @@ if __name__ == '__main__':
         time.sleep(0.5)
         if tb is not None:
             print tb
-        collectStats(insertTable)
-        logging.disable(logging.CRITICAL)
+        if shouldCollectStats:
+            collectStats(insertTable)
     
     
