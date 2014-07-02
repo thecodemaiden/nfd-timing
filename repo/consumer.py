@@ -9,7 +9,7 @@ from numpy import mean
 import logging
 
 class RepoConsumer:
-    TIMEOUT = 100.0
+    TIMEOUT = 100
     def __init__(self, dataPrefix, lastVersion=None, start=True):
         self.prefix = Name(dataPrefix)
         
@@ -30,6 +30,10 @@ class RepoConsumer:
         self.timeouts = 0
         self.notReady = 0
 
+        self.backoffCounter = 0
+        
+        self.interestLifetime = 100
+
         self.nextIssue = None
 
     def onData(self, interest, data):
@@ -42,8 +46,9 @@ class RepoConsumer:
             print lastComponent
             if str(lastComponent) == 'MISSING':
                 self.notReady += 1
+                self.backoffCounter += 1
                 logger.info('repo not ready')
-                self.waitThenReissue()
+                self.reissueInterest()
                 return
 
             self.lastVersion = data.getName().get(nameLength)
@@ -54,23 +59,31 @@ class RepoConsumer:
             self.logger.debug("Created: " + str(ts) +  ", received: " + str(now))
         except Exception as  e:
             self.logger.exception(str(e))
-        self.reissueInterest()
-
-    def waitThenReissue(self):
-        if self.nextIssue is not None:
-            now = time.clock()
-            if self.nextIssue > now:
-                time.sleep(self.nextIssue-now)
+        self.backoffCounter -= 1
         self.reissueInterest()
 
     def onTimeout(self, interest):
         self.logger.debug("timeout")
         self.timeouts += 1
-        self.waitThenReissue()
+        self.backoffCounter += 1
+        self.reissueInterest()
 
     def reissueInterest(self):
+        BACKOFF_THRESHOLD = 10
+        if self.backoffCounter > BACKOFF_THRESHOLD:
+            self.TIMEOUT += 50
+            self.backoffCounter = 0
+            self.logger.debug('Backing off interval to ' + str(self.TIMEOUT))
+        if self.backoffCounter < -BACKOFF_THRESHOLD:
+            self.TIMEOUT -= 50
+            self.backoffCounter = 0
+            self.logger.debug('Reducing backoff interval to ' + str(self.TIMEOUT))
+        if self.nextIssue is not None:
+            now = time.clock()
+            if self.nextIssue > now:
+                time.sleep(self.nextIssue-now)
         interest = Interest(Name(self.prefix))
-        interest.setInterestLifetimeMilliseconds(self.TIMEOUT) 
+        interest.setInterestLifetimeMilliseconds(self.TIMEOUT)
         #interest.setMustBeFresh(False)
         if self.lastVersion is not None:
             e = Exclude()
@@ -93,7 +106,7 @@ class RepoConsumer:
         self.logger.info('*'*22)
 
 if __name__ == '__main__':
-    consumer = RepoConsumer("/repotest/data/3")
+    consumer = RepoConsumer("/repotest/data/4")
     consumer.reissueInterest()
     try:
         while True:
