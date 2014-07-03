@@ -64,6 +64,7 @@ shouldCollectStats = True
 fakeSignature = Sha256WithRsaSignature()
 
 missedRequests = 0
+handledRequests = 0
 
 def generateData(baseName):
     '''
@@ -134,16 +135,16 @@ def onDataMissing(prefix, interest, transport):
     global missedRequests
     logger.info("Data missing for interest: " + interest.toUri())
     missedRequests += 1
-    d = Data(Name.fromEscapedString('/repotest/data/3/%FF/MISSING'))
-    d.getMetaInfo().setFreshnessPeriod(500)
-    d.setContent("TRY AGAIN")
-    if shouldSign:
-        keychain.sign(d, certName)
-    else:
-        d.setSignature(fakeSignature)
-    print d.getName().toRawString()
-    encodedData = d.wireEncode()
-    transport.send(encodedData.buf())
+#    d = Data(Name.fromEscapedString('/repotest/data/6/%FF/MISSING'))
+#    d.getMetaInfo().setFreshnessPeriod(500)
+#    d.setContent("TRY AGAIN")
+#    if shouldSign:
+#        keychain.sign(d, certName)
+#    else:
+#        d.setSignature(fakeSignature)
+#    print d.getName().toRawString()
+#    encodedData = d.wireEncode()
+#    transport.send(encodedData.buf())
 
 if __name__ == '__main__':
     tb = None
@@ -178,7 +179,7 @@ if __name__ == '__main__':
         time.sleep(1)
         while not done:
             #pick a random data name
-            data_part = "3"# str(randint(0,N))
+            data_part = "6"# str(randint(0,N))
 
             fullName = Name(data_prefix).append(Name(data_part))
 
