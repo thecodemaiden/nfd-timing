@@ -82,7 +82,7 @@ def generateData(baseName):
     content = "(" + str(ts) +  ") Data named " + dataName.toUri()
     d.setContent(content)
     d.getMetaInfo().setFinalBlockID(segmentId)
-    d.getMetaInfo().setFreshnessPeriod(60000)
+    d.getMetaInfo().setFreshnessPeriod(-1)
     if shouldSign:
         keychain.sign(d, certName)
     else:
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     publisher_face = Face("localhost")
     publisher_face.setCommandSigningInfo(keychain, certName)
 
-    dataCache = MemoryContentCache(publisher_face, -1)
+    dataCache = MemoryContentCache(publisher_face, 1)
     dataCache.registerPrefix(data_prefix,  registerFail, onDataMissing)
 
     publisher = Thread(target=publisher_loop, name="Data publisher", args=(publisher_face,))    
@@ -179,7 +179,7 @@ if __name__ == '__main__':
         time.sleep(1)
         while not done:
             #pick a random data name
-            data_part = "6"# str(randint(0,N))
+            data_part = "4"# str(randint(0,N))
 
             fullName = Name(data_prefix).append(Name(data_part))
 
@@ -201,6 +201,8 @@ if __name__ == '__main__':
                 if info is not None:
                     info['insert_complete'] = time.time()
             time.sleep(0.1)
+            print '.',
+            sys.stdout.flush()
     except Exception as e:
         print e
         tb = traceback.format_exc()

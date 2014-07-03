@@ -46,7 +46,7 @@ class RepoConsumer:
             print lastComponent
             if str(lastComponent) == 'MISSING':
                 self.notReady += 1
-                self.backoffCounter += 1
+                #self.backoffCounter += 1
                 logger.info('repo not ready')
                 self.reissueInterest()
                 return
@@ -59,13 +59,13 @@ class RepoConsumer:
             self.logger.debug("Created: " + str(ts) +  ", received: " + str(now))
         except Exception as  e:
             self.logger.exception(str(e))
-        self.backoffCounter -= 1
+        #self.backoffCounter -= 1
         self.reissueInterest()
 
     def onTimeout(self, interest):
         self.logger.debug("timeout")
         self.timeouts += 1
-        self.backoffCounter += 1
+        #self.backoffCounter += 1
         self.reissueInterest()
 
     def reissueInterest(self):
@@ -84,7 +84,7 @@ class RepoConsumer:
                 time.sleep(self.nextIssue-now)
         interest = Interest(Name(self.prefix))
         interest.setInterestLifetimeMilliseconds(self.TIMEOUT)
-        #interest.setMustBeFresh(False)
+        interest.setMustBeFresh(False)
         if self.lastVersion is not None:
             e = Exclude()
             e.appendAny()
