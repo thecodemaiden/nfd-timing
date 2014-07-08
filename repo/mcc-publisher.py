@@ -164,6 +164,7 @@ if __name__ == '__main__':
                time.sleep(0.01)
        except:
            face.shutdown()
+           return 0
 
     publisher_face = Face("localhost")
     publisher_face.setCommandSigningInfo(keychain, certName)
@@ -217,5 +218,6 @@ if __name__ == '__main__':
             print tb
         if shouldCollectStats:
             collectStats(insertTable)
+        publisher_face.shutdown()
     
     

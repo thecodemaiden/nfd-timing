@@ -1,10 +1,15 @@
 #!/usr/bin/python
 
-from pyndn import Name, Face, Interest, Data, Exclude
+from pyndn import Name, ThreadsafeFace, Interest, Data, Exclude
 import time
 import sys
 import re
 from numpy import mean
+
+try:
+    import asyncio
+except ImportError:
+    import trollius as asyncio
 
 import logging
 
@@ -16,7 +21,7 @@ class RepoConsumer:
         #used in the exclude to make sure we get new data only
         self.lastVersion = lastVersion
 
-        self.face = Face()
+        self.face = None
         self.dataFormat = re.compile("\((\d+\.?\d*)\)") # data should start with a timestamp in 
         logFormat = '%(asctime)-10s %(message)s'
         self.logger = logging.getLogger('RepoConsumer')
@@ -35,6 +40,22 @@ class RepoConsumer:
         self.interestLifetime = 100
 
         self.nextIssue = None
+        self.loop = None
+
+        self.isCancelled = False
+
+    def start(self):
+        self.loop =  asyncio.get_event_loop()
+        self.face = ThreadsafeFace(self.loop, "")
+        self.face.stopWhen(lambda:self.isCancelled)
+        self.reissueInterest()
+        self.loop.run_forever()
+
+    def stop(self):
+        self.loop.close()
+        self.face.shutdown()
+        self.loop = None
+        self.face = None
 
     def onData(self, interest, data):
         now = time.time()
@@ -107,13 +128,10 @@ class RepoConsumer:
 
 if __name__ == '__main__':
     consumer = RepoConsumer("/repotest/data/4")
-    consumer.reissueInterest()
     try:
-        while True:
-            consumer.face.processEvents()
-            time.sleep(0.01)
+        consumer.start()
     except KeyboardInterrupt:
-        consumer.face.shutdown()
+        consumer.stop()
     consumer.printStats()
 
         
