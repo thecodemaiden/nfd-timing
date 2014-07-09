@@ -17,6 +17,7 @@ from threading import Thread
 from random import randint, uniform
 from mock import Mock
 from numpy import mean
+from ConfigParser import RawConfigParser
 
 import time
 import traceback
@@ -44,9 +45,9 @@ def getInfoForVersion(version):
 logger = logging.getLogger('RepoPublisher')
 logger.setLevel(logging.DEBUG)
 sh = logging.StreamHandler()
-sh.setLevel(logging.WARNING)
+sh.setLevel(logging.DEBUG)
 fh = logging.FileHandler('repo_push.log')
-fh.setLevel(logging.INFO)
+fh.setLevel(logging.DEBUG)
 logger.addHandler(sh)
 logger.addHandler(fh)
 
@@ -90,9 +91,9 @@ def onDataInterest(prefix, interest, transport, pxID):
 '''
 
 def createInsertInterest(fullName):
-    global lastName
     # we have to do the versioning when we poke the repo
     interestName = Name(fullName)
+    logger.debug('Creating insert interest for: '+interestName.toUri())
     
     insertionName = Name("/repotest/repo/insert")
     commandParams = RepoCommandParameterMessage()
@@ -173,7 +174,12 @@ def collectStats(data):
 
 if __name__ == '__main__':
     tb = None
-    data_prefix = Name("/repotest/data")
+    config = RawConfigParser()
+    config.read('config.cfg')
+    prefix = config.get('Data', 'prefix')
+    suffix = config.get('Data', 'suffix')
+
+    data_prefix = Name(prefix)
 
     done = False
     # start publisher face
@@ -205,7 +211,7 @@ if __name__ == '__main__':
         time.sleep(1)
         while not done:
             #pick a random data name
-            data_part = "2"# str(randint(0,N))
+            data_part = suffix #str(randint(0,N))
 
             fullName = Name(data_prefix).append(Name(data_part))
 

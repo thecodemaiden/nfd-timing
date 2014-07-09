@@ -19,6 +19,7 @@ from threading import Thread
 from random import randint, uniform
 from mock import Mock
 from numpy import mean
+from ConfigParser import RawConfigParser
 
 import time
 import traceback
@@ -148,7 +149,11 @@ def onDataMissing(prefix, interest, transport):
 
 if __name__ == '__main__':
     tb = None
-    data_prefix = Name("/repotest/data")
+    config = RawConfigParser()
+    config.read('config.cfg')
+    prefix = config.get('Data', 'prefix')
+    suffix = config.get('Data', 'suffix')
+    data_prefix = Name(prefix)
 
     done = False
     # start publisher face
@@ -180,7 +185,7 @@ if __name__ == '__main__':
         time.sleep(1)
         while not done:
             #pick a random data name
-            data_part = "4"# str(randint(0,N))
+            data_part = suffix# str(randint(0,N))
 
             fullName = Name(data_prefix).append(Name(data_part))
 

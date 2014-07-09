@@ -12,6 +12,7 @@ except ImportError:
     import trollius as asyncio
 
 import logging
+from ConfigParser import RawConfigParser
 
 class RepoConsumer:
     TIMEOUT = 100
@@ -64,7 +65,6 @@ class RepoConsumer:
         dataStr = data.getContent().toRawStr()
         try:
             lastComponent = data.getName().get(-1).toEscapedString()
-            print lastComponent
             if str(lastComponent) == 'MISSING':
                 self.notReady += 1
                 #self.backoffCounter += 1
@@ -127,7 +127,13 @@ class RepoConsumer:
         self.logger.info('*'*22)
 
 if __name__ == '__main__':
-    consumer = RepoConsumer("/repotest/data/4")
+    config = RawConfigParser()
+    config.read('config.cfg')
+    prefix = config.get('Data', 'prefix')
+    suffix = config.get('Data', 'suffix')
+
+    fullName = Name(prefix).append(suffix)
+    consumer = RepoConsumer(fullName)
     try:
         consumer.start()
     except KeyboardInterrupt:
