@@ -16,7 +16,7 @@ from ConfigParser import RawConfigParser
 
 class RepoConsumer:
     TIMEOUT = 100
-    def __init__(self, dataPrefix, lastVersion=None, start=True):
+    def __init__(self, dataPrefix, interestLifetime=100, lastVersion=None, start=True):
         self.prefix = Name(dataPrefix)
         
         #used in the exclude to make sure we get new data only
@@ -38,7 +38,7 @@ class RepoConsumer:
 
         self.backoffCounter = 0
         
-        self.interestLifetime = 100
+        self.interestLifetime = interestLifetime
 
         self.nextIssue = None
         self.loop = None
@@ -104,7 +104,7 @@ class RepoConsumer:
             if self.nextIssue > now:
                 time.sleep(self.nextIssue-now)
         interest = Interest(Name(self.prefix))
-        interest.setInterestLifetimeMilliseconds(self.TIMEOUT)
+        interest.setInterestLifetimeMilliseconds(self.interestLifetime)
         interest.setMustBeFresh(False)
         if self.lastVersion is not None:
             e = Exclude()
@@ -132,8 +132,10 @@ if __name__ == '__main__':
     prefix = config.get('Data', 'prefix')
     suffix = config.get('Data', 'suffix')
 
+    interestLifetime = config.get('Publisher', 'interestLifetime')
+
     fullName = Name(prefix).append(suffix)
-    consumer = RepoConsumer(fullName)
+    consumer = RepoConsumer(fullName, interestLifetime=interestLifetime)
     try:
         consumer.start()
     except KeyboardInterrupt:
