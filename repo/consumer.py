@@ -102,7 +102,8 @@ class RepoConsumer:
         if self.nextIssue is not None:
             now = time.clock()
             if self.nextIssue > now:
-                time.sleep(self.nextIssue-now)
+                pass
+               # time.sleep(self.nextIssue-now)
         interest = Interest(Name(self.prefix))
         interest.setInterestLifetimeMilliseconds(self.interestLifetime)
         interest.setMustBeFresh(False)

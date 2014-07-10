@@ -1,13 +1,13 @@
 #!/usr/bin/python
 
 #
-# This is the data publisher - it pokes ther repo every
-# so often to insert a new version under 1 of N names
+# This is the data publisher - it starts an insert to the repo,
+# published the requested data, then check the insertion status
 #
 
-# TODO - put command prefix into variable/config
+#TODO: track timeouts
 
-from pyndn import Name, ThreadsafeFace, Interest, Data, Face
+from pyndn import Name, ThreadsafeFace, Interest, Data
 from pyndn.security import KeyChain
 from repo_command_pb2 import RepoCommandParameterMessage
 from repo_response_pb2 import RepoCommandResponseMessage
@@ -30,12 +30,7 @@ except ImportError:
     import trollius as asyncio
     from trollius import From, Return
 
-
-N = 4
-
 # version, insert request time, data publish time, insert begin time, insert finish time
-
-
 
 
 logger = logging.getLogger('RepoPublisher')
@@ -49,8 +44,11 @@ logger.addHandler(fh)
 
 logging.getLogger('trollius').addHandler(sh)
 
-
-stats = StatsCollector()
+shouldCollectStats = False
+if shouldCollectStats:
+    stats = StatsCollector()
+else:
+    stats = Mock()
 
 class RepoPublisher:
     def __init__(self, repoPrefix, dataPrefix, dataSuffix, keychain=None):
@@ -68,7 +66,6 @@ class RepoPublisher:
             self.keychain = KeyChain()
 
         self.certificateName = self.keychain.getDefaultCertificateName()
-        self._isStopped = True
 
         self.failureCount = 0
         self.successCount = 0
@@ -91,7 +88,8 @@ class RepoPublisher:
         return versionStr
 
     def stop(self):
-        self._isStopped = True
+        self.loop.close()
+        self.face.shutdown()
 
     def onPublishInterest(self, prefix, interest, transport, pxID):
         '''
@@ -136,15 +134,11 @@ class RepoPublisher:
 
     def onTimeout(self, prefix):
         logger.warn('Timeout waiting for '+prefix.toUri())
-        self.timeoutEvent.set()
 
     
     def start(self):
         self.loop = asyncio.new_event_loop()
         self.face = ThreadsafeFace(self.loop, "")
-
-        self.timeoutEvent = asyncio.Event(loop=self.loop)
-        self.dataReady = asyncio.Condition(loop=self.loop)
 
         asyncio.set_event_loop(self.loop)
         self.face.setCommandSigningInfo(self.keychain, self.certificateName)
@@ -152,9 +146,6 @@ class RepoPublisher:
         try:
             self.loop.call_soon(self.kickRepo)
             self.loop.run_forever()
-        finally:
-            self.loop.close()
-            self.face.shutdown()
 
 
     def kickRepo(self):
@@ -267,7 +258,7 @@ if __name__ == '__main__':
         repoPublisher.start()
     except KeyboardInterrupt:
         repoPublisher.stop()
-    finally:
+    else:
         traceback.print_stack()
     stats.displayStats()
     
