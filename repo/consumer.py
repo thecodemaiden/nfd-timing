@@ -14,6 +14,31 @@ except ImportError:
 import logging
 from ConfigParser import RawConfigParser
 
+
+class InterestTimer:
+    """
+        This encapsulates the express-data/timeout path for one interest
+        for better timing
+    """
+    def __init__(self, face, interest):
+        self.startTime = None
+        self.endTime = None
+        self.interest = Interest(interest)
+        self.face = face
+        self.didTimeout = False
+        
+    def onDataReceived(self, interest, data):
+        self.endTime = time.clock()
+
+    def onTimeout(self, interest):
+        self.didTimeout = True
+
+    @asyncio.coroutine
+    def submit(self):
+        self.face.expressInterest(self.interest, onDataReceived, onTimeout)
+        self.startTime = time.clock()
+        raise Return()
+
 class RepoConsumer:
     TIMEOUT = 100
     def __init__(self, dataPrefix, interestLifetime=100, lastVersion=None, start=True):
@@ -32,10 +57,13 @@ class RepoConsumer:
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter(logFormat))
         self.logger.addHandler(fh)
-        self.timing = []
+        self.createTiming = []
+        self.receiveTiming = []
         self.timeouts = 0
         self.notReady = 0
 
+        self.lastReceivedTime = 0
+        self.lastCreatedTime = 0
         self.backoffCounter = 0
         
         self.interestLifetime = interestLifetime
@@ -76,7 +104,12 @@ class RepoConsumer:
             self.logger.debug(interest.getName().toUri() + ": version " + self.lastVersion.toEscapedString())
             match = self.dataFormat.match(data.getContent().toRawStr())
             ts = float(match.group(1))
-            self.timing.append(now-ts)
+            if self.lastReceivedTime != 0 and self.lastCreatedTime != 0:
+                self.createTiming.append(now-self.lastReceivedTime)
+                self.receiveTiming.append(now-self.lastCreatedTime)
+
+            self.lastReceivedTime = now
+            self.lastCreatedTime = ts
             self.logger.debug("Created: " + str(ts) +  ", received: " + str(now))
         except Exception as  e:
             self.logger.exception(str(e))
@@ -118,13 +151,16 @@ class RepoConsumer:
 
     def printStats(self):
         # the first value may have been sitting in the repo forever, so ignore the first time
-        timing = self.timing
+        timing = self.createTiming
         self.logger.info('***** Statistics ***** ')
         if len(timing) > 1:
-            self.logger.info('{1:3.2f}/{2:3.2f}/{3:3.2f} min/mean/max delay'.format(len(timing), min(timing), mean(timing), max(timing)))
+            self.logger.info('{1:3.2f}/{2:3.2f}/{3:3.2f} min/mean/max delay(creation)'.format(len(timing), min(timing), mean(timing), max(timing)))
+        timing = self.receiveTiming
+        if len(timing) > 1:
+            self.logger.info('{1:3.2f}/{2:3.2f}/{3:3.2f} min/mean/max delay(receipt)'.format(len(timing), min(timing), mean(timing), max(timing)))
             self.logger.info('{} data requests satisfied'.format(len(timing)))
-        self.logger.info('{} timeouts'.format(consumer.timeouts))
-        self.logger.info('{} not ready responses'.format(consumer.notReady))
+        self.logger.info('{} timeouts'.format(self.timeouts))
+        self.logger.info('{} not ready responses'.format(self.notReady))
         self.logger.info('*'*22)
 
 if __name__ == '__main__':

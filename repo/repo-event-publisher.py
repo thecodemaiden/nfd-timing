@@ -43,7 +43,7 @@ sh.setLevel(logging.DEBUG)
 #logger.addHandler(fh)
 #
 logging.getLogger('trollius').addHandler(sh)
-logger = Mock()
+#logger = Mock()
 
 shouldCollectStats = True
 if shouldCollectStats:

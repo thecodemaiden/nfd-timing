@@ -27,6 +27,7 @@ import sys
 
 keychain = KeyChain()
 certName = keychain.getDefaultCertificateName()
+print certName.toUri()
 
 N = 4
 

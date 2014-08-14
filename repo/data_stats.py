@@ -1,4 +1,4 @@
-from numpy import mean
+fconsumerrom numpy import mean
 class StatsCollector:
     def __init__(self):
         self.insertTable = {}
