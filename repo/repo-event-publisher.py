@@ -7,8 +7,8 @@
 
 #TODO: track timeouts
 
-from pyndn import Name, ThreadsafeFace, Interest, Data
 from pyndn.security import KeyChain
+from pyndn import Name,  Data, Interest, ThreadsafeFace
 from repo_command_pb2 import RepoCommandParameterMessage
 from repo_response_pb2 import RepoCommandResponseMessage
 from pyndn.encoding import ProtobufTlv
@@ -33,18 +33,19 @@ except ImportError:
 # version, insert request time, data publish time, insert begin time, insert finish time
 
 
-logger = logging.getLogger('RepoPublisher')
-logger.setLevel(logging.DEBUG)
+#logger = logging.getLogger('RepoPublisher')
+#logger.setLevel(logging.DEBUG)
 sh = logging.StreamHandler()
 sh.setLevel(logging.DEBUG)
-fh = logging.FileHandler('repo_push.log')
-fh.setLevel(logging.DEBUG)
-logger.addHandler(sh)
-logger.addHandler(fh)
-
+#fh = logging.FileHandler('repo_push.log')
+#fh.setLevel(logging.DEBUG)
+#logger.addHandler(sh)
+#logger.addHandler(fh)
+#
 logging.getLogger('trollius').addHandler(sh)
+logger = Mock()
 
-shouldCollectStats = False
+shouldCollectStats = True
 if shouldCollectStats:
     stats = StatsCollector()
 else:
@@ -85,6 +86,7 @@ class RepoPublisher:
 
         # last component of name to insert is version
         versionStr = command.repo_command_parameter.name.component[-1]
+
         return versionStr
 
     def stop(self):
@@ -99,23 +101,23 @@ class RepoPublisher:
         interestName = interest.getName()
         logger.info("Interest for " + interestName.toUri())
 
-        ## CURRENTLY ASSUMES THERE'S A VERSION/SEGMENT SUFFIX!
-        dataName = Name(interestName.getPrefix(-1))
+        ## CURRENTLY ASSUMES THERE'S A VERSION+SEGMENT SUFFIX!
+        dataName = Name(interestName)
         ts = (time.time())
         segmentId = 0
-        try:
-           segmentId = interestName().get(-1).toSegment()
-        except:
-            logger.debug("Could not find segment id!")
-        dataName.appendSegment(segmentId)
-
-        versionStr = interestName.get(-2).getValue().toRawStr()
-        logger.debug('Publishing ' + versionStr)
+        #try:
+        #   segmentId = interestName.get(-1).toSegment()
+        #except:
+            #logger.debug("Could not find segment id!")
+            #dataName.appendSegment(segmentId)
+        versionStr = str(interestName.get(-2).getValue())
+        logger.debug('Publishing ' + versionStr + ' @ ' + str(ts))
 
         d = Data(dataName)
         content = "(" + str(ts) +  ") Data named " + dataName.toUri()
         d.setContent(content)
         d.getMetaInfo().setFinalBlockID(segmentId)
+        d.getMetaInfo().setFreshnessPeriod(1000)
         self.keychain.sign(d, self.certificateName)
 
         encodedData = d.wireEncode()
@@ -146,26 +148,34 @@ class RepoPublisher:
         try:
             self.loop.call_soon(self.kickRepo)
             self.loop.run_forever()
+        finally:
+           self.stop() 
 
 
     def kickRepo(self):
         # command the repo to insert a new bit of data
         fullName = self.generateVersionedName()
-        versionStr = fullName.get(-1).toEscapedString()
+        versionStr = str(fullName.get(-1).getValue())
         command = self.createInsertInterest(fullName)
 
         logger.debug('inserting: ' + versionStr)
 
         self.face.makeCommandInterest(command)
+        def timeoutLoop(interest):
+            logger.warn('Timed out on ' + interest.toUri())
+            self.face.expressInterest(command, self.onCommandData, self.onTimeout)
 
-        self.face.expressInterest(command, self.onCommandData, self.onTimeout)
+        self.face.expressInterest(command, self.onCommandData, timeoutLoop)
         stats.insertDataForVersion(versionStr, {'insert_request':time.time()})
 
     def checkInsertion(self, versionStr, processID):
         fullName = Name(self.dataName).append(Name.fromEscapedString(versionStr))
         checkCommand = self.createCheckInterest(fullName, processID)
         self.face.makeCommandInterest(checkCommand)
-        self.face.expressInterest(checkCommand, self.onCommandData, self.onTimeout)
+        def timeoutLoop(interest):
+            logger.warn('Timed out waiting on: '+interest.toUri())
+            self.face.expressInterest(checkCommand, self.onCommandData, self.onTimeout)
+        self.face.expressInterest(checkCommand, self.onCommandData, timeoutLoop)
 
     def createInsertInterest(self, fullName):
         '''
@@ -179,7 +189,7 @@ class RepoPublisher:
         commandParams = RepoCommandParameterMessage()
 
         for i in range(interestName.size()):
-            commandParams.repo_command_parameter.name.component.append(interestName.get(i).toEscapedString())
+            commandParams.repo_command_parameter.name.component.append(interestName.get(i).getValue().toRawStr())
 
         commandParams.repo_command_parameter.start_block_id = 0
         commandParams.repo_command_parameter.end_block_id = 0
@@ -198,7 +208,7 @@ class RepoPublisher:
 
         commandParams.repo_command_parameter.process_id = checkNum
         for i in range(interestName.size()):
-            commandParams.repo_command_parameter.name.component.append(interestName.get(i).toEscapedString())
+            commandParams.repo_command_parameter.name.component.append(str(interestName.get(i).getValue()))
 
         commandName = insertionName.append(ProtobufTlv.encode(commandParams))
         interest = Interest(commandName)

@@ -26,8 +26,6 @@ class StatsCollector:
         """
         insert_to_publish = []
         round_trip_time = []
-        #insert_time = [x['insert_complete'] - x['insert_begin'] for x in data]
-        #publish_to_ack = [x['insert_begin'] - x['publish_time'] for x in data]
 
         for x in self.insertTable:
             dataPoint = self.insertTable[x]
